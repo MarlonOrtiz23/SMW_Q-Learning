@@ -52,36 +52,22 @@ function serialize (o)
 	end
 end
 
-savestate.load(inicio);
 estado = 0;
-objetivoX = 4840;
+objetivoX = 4700; --4823
+posX = 0;
 posXanterior = 0;
 score = 0;
-posX = 0;
+scoreAnterior = 0;
 
-results = 0;
+acao = 0;
+currentValue = 0;
+newValue = 0;
+learningRate = 0.5;
+discount = 0.5;
 
-
-while true do
-	posXanterior = posX;
-	
-	scoreAnterior = score;
-	
-	--recompensa = posX - posXanterior;
-	
+function q()
 	getElementos();
-	
-	--print("pos x tela " .. posXtela);
-	--print("pos y tela " .. posYtela);
-	--print("pos x mundo " .. posX);
-	--print("pos y mundo " .. posY);
-	--print("");
-	
 	estado = posX .. 000 .. posY;
-	
-	acao = 0;
-	
-	--print("estado " .. estado);
 	
 	if qtable[estado] == nil then -- estado novo
 		--print("qtable nil");
@@ -89,87 +75,154 @@ while true do
 		for i = 2,6 do
 			qtable[estado][i] = 0;
 		end
-		acao = math.random(2,6);
+		savestate.save("estados/" .. estado);
+	else
+		savestate.load("estados/" .. estado);
 	end
 	
-	if acao == 0 then -- já passou nesse estado
-		r = math.random(0,100);
-		if r < 5 then -- % de chance
-			acao = math.random(2,6);
-			print("acao randomica tomada");
-		else
-			melhor = 0;
-			indice = 0;
-			for i = 2, 6 do
-				if qtable[estado][i] >= melhor then
-					melhor = qtable[estado][i];
-					indice = i;
-				end
-			end
-			print("melhor acao tomada");
-			acao = indice;
-		end
-	end
-	
-	--savestate.save("estados/estado" .. estado);
-	
-	resetControl();
-	comandos[acoes[1]] = true; -- ir para direita
-		
-	if acao < 5 then
-		comandos[acoes[acao]] = true;
-	end
-	
-	if acao == 5 then -- X + A
-		comandos[acoes[2]] = true;
-		comandos[acoes[3]] = true;		
-	end
-	
-	if acao == 6 then -- X + B
-		comandos[acoes[2]] = true;
-		comandos[acoes[4]] = true;		
-	end
-	
-	ver = 0;
-	
-	for i = 1, 6 do
-		joypad.set(comandos);
-		emu.frameadvance();
-		getElementos();		
-		if marioMorre == 9 then
-			qtable[estado][acao] = -100;			
-			ver =  1;
-			savestate.load(inicio);
-			break;
-		end
-	end
-	
-	if posX > objetivoX then
-		print ("objetivo alcançado!\n");
-		file = io.open("score.txt","a+");
+	if posX > objetivoX then -- verifica o objetivo
+		--getElementos();
+		print ("objetivo alcançado!\n score: " .. score);
+		file = io.open("scores.txt","a+");
 		io.output(file);
 		io.write("\n");
-		io.write(score);
+		io.write(score);		
 		io.close(file);
-		results = results+1;
-		if results == 10 then
-			break;
-		end
-		savestate.load(inicio);
+		--savestate.load(inicio);
 		qtable[estado][acao] = 100;
-		ver = 1;
+		return 100;
 	end
 	
-	--recompensa
+	if posX <= posXanterior then
+		return -10;
+	end
 	
-	recompensa = (score - scoreAnterior) + ((posX - posXanterior)/10);
-	if ver == 0 then
-		if qtable[estado][acao] < recompensa then
-			qtable[estado][acao] = recompensa;
+	reward = (score - scoreAnterior) + ((posX - posXanterior)/10);
+	
+	posXanterior = posX;
+	
+	scoreAnterior = score;
+	
+	melhor = 0;
+	
+	for i = 2, 6 do -- para todas as ações
+		savestate.load("estados/" .. estado);
+		acao = i;
+		resetControl();
+		comandos[acoes[1]] = true; -- ir para direita
+		
+		if acao < 5 then
+			comandos[acoes[acao]] = true;
+		end
+		
+		if acao == 5 then -- X + A
+			comandos[acoes[2]] = true;
+			comandos[acoes[3]] = true;		
+		end
+		
+		if acao == 6 then -- X + B
+			comandos[acoes[2]] = true;
+			comandos[acoes[4]] = true;		
+		end
+		
+		for i = 1, 60 do -- realiza ação
+			joypad.set(comandos);
+			emu.frameadvance();
+			getElementos();
+			--print(marioMorre);
+			if marioMorre == 9 then -- verifica se morreu
+				qtable[estado][acao] = -100;			
+				--savestate.load(inicio);
+				return -100;
+			end
+		end
+		
+		aux = q();
+		
+		if aux > melhor then
+			melhor = aux;
 		end
 	end
 	
-	--qtable[estado] = posX-posXanterior;
-	--estado = estado+1;
+	qtable[estado][acao] = qtable[estado][acao] + (learningRate* (reward + (discount*melhor) - qtable[estado][acao]));
+	
+	return qtable[estado][acao];
+	
+end
+
+
+for i = 1, 1 do
+	savestate.load(inicio);
+	getElementos();
+	
+	posXanterior = posX;
+	
+	scoreAnterior = score;
+	
+	for i = 2, 6 do
+		savestate.load(inicio);
+		acao = i;
+		resetControl();
+		comandos[acoes[1]] = true; -- ir para direita
+		
+		if acao < 5 then
+			comandos[acoes[acao]] = true;
+		end
+		
+		if acao == 5 then -- X + A
+			comandos[acoes[2]] = true;
+			comandos[acoes[3]] = true;		
+		end
+		
+		if acao == 6 then -- X + B
+			comandos[acoes[2]] = true;
+			comandos[acoes[4]] = true;		
+		end
+		
+		for i = 1, 60 do -- realiza ação
+			joypad.set(comandos);
+			emu.frameadvance();
+			getElementos();
+			--print(marioMorre);
+			if marioMorre == 9 then -- verifica se morreu
+				qtable[estado][acao] = -100;			
+				--savestate.load(inicio);
+				return -100;
+			end
+		end
+		
+		aux = q();
+		
+		if aux > melhor then
+			melhor = aux;
+		end
+	end
+	
+	qtable[estado][acao] = qtable[estado][acao] + (learningRate* (reward + (discount*melhor) - qtable[estado][acao]));
+	
+	print("treino finalizado \n");
+	
+	while true do
+		savestate.load(inicio);		
+		while posX < objetivoX do
+			getElementos();
+			estado = posX .. 000 .. posY;
+			resetControl();
+			comandos[acoes[1]] = true; -- ir para direita
+			melhor = 0;
+			for i = 2, 6 do -- para todas as ações
+				aux = qtable[estado][i];
+				if aux > melhor then
+					melhor = aux;
+				end
+			end
+			acao = melhor;
+			for i = 1, 60 do -- realiza ação
+				joypad.set(comandos);
+				emu.frameadvance();
+			end
+			getElementos();
+		end
+	end
 	
 end
