@@ -66,6 +66,9 @@ newValue = 0;
 learningRate = 0.5;
 discount = 0.5;
 
+melhorScore = 0;
+frames = 60; -- quantidade de frames para cada ação
+
 function q(estado, acao)
 	print("\nestado: " .. estado .. " acao: " .. acao);
 	if qtable[estado] == nil then -- estado novo
@@ -104,7 +107,7 @@ function q(estado, acao)
 	
 	local cont = 0;
 	local j;
-	for j = 1, 60 do -- realiza ação
+	for j = 1, frames do -- realiza ação
 		joypad.set(comandos);
 		emu.frameadvance();
 		xAux = posX;
@@ -128,6 +131,9 @@ function q(estado, acao)
 	
 	if posX > objetivoX then -- verifica o objetivo
 		print ("objetivo concluido!\n score: " .. score);
+		if score > melhorScore then
+			melhorScore = score;
+		end
 		--file = io.open("scores.txt","a+");
 		--io.output(file);
 		--io.write("\n");
@@ -139,12 +145,12 @@ function q(estado, acao)
 	end
 	
 	
-	local reward = (score - scoreAnterior) + ((posX - posXanterior)/10);
+	local reward = (score - scoreAnterior); -- + ((posX - posXanterior)/10);
+	
+	local estadoAux = posX .. 000 .. posY;
 	
 	posXanterior = posX;
 	scoreAnterior = score;
-	
-	local estadoAux = posX .. 000 .. posY;
 	
 	local melhor = 0;
 	local i;
@@ -159,6 +165,9 @@ function q(estado, acao)
 			end
 			
 			savestate.load("estados/" .. estadoAux);
+			getElementos();
+			posXanterior = posX;
+			scoreAnterior = score;
 		end
 	end
 	
@@ -169,52 +178,51 @@ function q(estado, acao)
 end
 
 
-for i = 1, 1 do
-	savestate.load(inicio);
+savestate.load(inicio);
+getElementos();
+local estado = posX .. 000 .. posY;
+for acao = 2, 6 do -- para todas as ações
+	q(estado,acao);
+end
+
+print("treino finalizado \n");
+print("melhor score: " .. melhorScore);
+
+savestate.load(inicio);
+while posX < objetivoX do
 	getElementos();
-	local estado = posX .. 000 .. posY;
-	for acao = 2, 6 do -- para todas as ações
-		q(estado,acao);
-	end
-	
-	print("treino finalizado \n");
-	
-	while true do
-		savestate.load(inicio);		
-		while posX < objetivoX do
-			getElementos();
-			estado = posX .. 000 .. posY;
-			resetControl();
-			comandos[acoes[1]] = true; -- ir para direita
-			melhor = 0;
-			for i = 2, 6 do -- para todas as ações
-				aux = qtable[estado][i];
-				if aux > melhor then
-					melhor = aux;
-				end
-			end
-			
+	estado = posX .. 000 .. posY;
+	resetControl();
+	comandos[acoes[1]] = true; -- ir para direita
+	melhor = 0;
+	acao = 2;
+	for i = 2, 6 do -- para todas as ações
+		aux = qtable[estado][i];
+		if aux > melhor then
+			melhor = aux;
 			acao = i;
-			if acao < 5 then
-				comandos[acoes[acao]] = true;
-			end
-			
-			if acao == 5 then -- X + A
-				comandos[acoes[2]] = true;
-				comandos[acoes[3]] = true;		
-			end
-			
-			if acao == 6 then -- X + B
-				comandos[acoes[2]] = true;
-				comandos[acoes[4]] = true;		
-			end
-			
-			for i = 1, 60 do -- realiza ação
-				joypad.set(comandos);
-				emu.frameadvance();
-			end
-			getElementos();
 		end
 	end
 	
+	if acao < 5 then
+		comandos[acoes[acao]] = true;
+	end
+	
+	if acao == 5 then -- X + A
+		comandos[acoes[2]] = true;
+		comandos[acoes[3]] = true;		
+	end
+	
+	if acao == 6 then -- X + B
+		comandos[acoes[2]] = true;
+		comandos[acoes[4]] = true;		
+	end
+	
+	for i = 1, frames do -- realiza ação
+		joypad.set(comandos);
+		emu.frameadvance();
+	end
+	getElementos();
 end
+
+print("\n score final: " .. score);
