@@ -52,12 +52,13 @@ function serialize (o)
 	end
 end
 
-estado = 0;
-objetivoX = 4823; --4823
+--estado = 0;
+objetivoX = 800; --4823
 posX = 0;
 posXanterior = 0;
 score = 0;
 scoreAnterior = 0;
+--estadoAnterior = 0;
 
 acao = 0;
 currentValue = 0;
@@ -65,84 +66,99 @@ newValue = 0;
 learningRate = 0.5;
 discount = 0.5;
 
-function q()
-	getElementos();
-	
-	local estado = posX .. 000 .. posY;
-	
+function q(estado, acao)
+	print("\nestado: " .. estado .. " acao: " .. acao);
 	if qtable[estado] == nil then -- estado novo
 		--print("qtable nil");
 		qtable[estado] = {};
+		qtable[estado][1] = 0; -- ações diferentes realizadas nesse estado
 		for i = 2,6 do
-			qtable[estado][i] = 0;
+			qtable[estado][i] = -0.001; -- ação nunca utilizada
 		end
 		savestate.save("estados/" .. estado);
 	else
+		if qtable[estado][acao] ~= -0.001 then
+			return qtable[estado][acao];
+		end
 		savestate.load("estados/" .. estado);
 	end
 	
+	qtable[estado][1] = qtable[estado][1]+1;
+	
+	resetControl();
+	comandos[acoes[1]] = true; -- ir para direita
+	
+	if acao < 5 then
+		comandos[acoes[acao]] = true;
+	end
+	
+	if acao == 5 then -- X + A
+		comandos[acoes[2]] = true;
+		comandos[acoes[3]] = true;		
+	end
+	
+	if acao == 6 then -- X + B
+		comandos[acoes[2]] = true;
+		comandos[acoes[4]] = true;		
+	end
+	
+	local cont = 0;
+	local j;
+	for j = 1, 60 do -- realiza ação
+		joypad.set(comandos);
+		emu.frameadvance();
+		xAux = posX;
+		getElementos();
+		--print(marioMorre);
+		if marioMorre == 9 then -- verifica se morreu
+			qtable[estado][acao] = -100;			
+			--savestate.load(estado);
+			return -100;
+		end
+		
+		if cont == 10 then
+			cont = 0;
+			return -100;
+		end
+		
+		if posX == xAux then
+			cont = cont+1;
+		end
+	end
+	
 	if posX > objetivoX then -- verifica o objetivo
-		--getElementos();
-		print ("objetivo alcançado!\n score: " .. score);
-		file = io.open("scores.txt","a+");
-		io.output(file);
-		io.write("\n");
-		io.write(score);		
-		io.close(file);
+		print ("objetivo concluido!\n score: " .. score);
+		--file = io.open("scores.txt","a+");
+		--io.output(file);
+		--io.write("\n");
+		--io.write(score);		
+		--io.close(file);
 		--savestate.load(inicio);
 		qtable[estado][acao] = 100;
 		return 100;
 	end
 	
-	if posX <= posXanterior then
-		return -10;
-	end
 	
-	reward = (score - scoreAnterior) + ((posX - posXanterior)/10);
+	local reward = (score - scoreAnterior) + ((posX - posXanterior)/10);
 	
 	posXanterior = posX;
-	
 	scoreAnterior = score;
 	
-	melhor = 0;
+	local estadoAux = posX .. 000 .. posY;
 	
-	for i = 2, 6 do -- para todas as ações
-		--estado = posX .. 000 .. posY;
-		savestate.load("estados/" .. estado);
-		acao = i;
-		resetControl();
-		comandos[acoes[1]] = true; -- ir para direita
-		
-		if acao < 5 then
-			comandos[acoes[acao]] = true;
-		end
-		
-		if acao == 5 then -- X + A
-			comandos[acoes[2]] = true;
-			comandos[acoes[3]] = true;		
-		end
-		
-		if acao == 6 then -- X + B
-			comandos[acoes[2]] = true;
-			comandos[acoes[4]] = true;		
-		end
-		
-		for i = 1, 60 do -- realiza ação
-			joypad.set(comandos);
-			emu.frameadvance();
-			getElementos();
-			--print(marioMorre);
-			if marioMorre == 9 then -- verifica se morreu
-				qtable[estado][acao] = -100;			
-				--savestate.load(inicio);
-				return -100;
+	local melhor = 0;
+	local i;
+	local aux;
+	
+	if qtable[estadoAux] == nil or qtable[estadoAux][1] < 5 then -- se não realizou todas as ações nesse novo estado
+		for i = 2, 6 do -- para todas as ações
+			aux = q(estadoAux, i);
+			
+			if aux > melhor then
+				melhor = aux;
 			end
-		end
-		
-		aux = q();
-		
-		if aux > melhor then
-			melhor = aux;
+			
+			savestate.load("estados/" .. estadoAux);
 		end
 	end
 	
@@ -155,9 +171,11 @@ end
 
 for i = 1, 1 do
 	savestate.load(inicio);
-	--getElementos();
-	
-	q();
+	getElementos();
+	local estado = posX .. 000 .. posY;
+	for acao = 2, 6 do -- para todas as ações
+		q(estado,acao);
+	end
 	
 	print("treino finalizado \n");
 	
