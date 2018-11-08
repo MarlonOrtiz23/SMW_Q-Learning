@@ -13,48 +13,39 @@ function getElementos()
 	score = memory.read_s24_le(0xF34);
 	coins = memory.read_s24_le(0xDBF);
 	
-	--blocosAux = memory.readbyterange(0x1BE6,256);
-	--print("blocosAux[0] " .. blocosAux[0]);
-	--blocos = "";
-	--for i = 0, 255 do
-		--print(i .. " ");
-		--blocos = blocos .. "0" .. blocosAux[i];
-	--end
-	
-	--inimigosID = "";
-	--inimigosIDaux = memory.readbyterange(0x9E,12);
-	--for i = 0, 11 do
-		--inimigosID = inimigosID .. "0" .. inimigosIDaux[i];
-	--end
-	
-	--inimigosStatus = "";
-	--inimigosStatusaux = memory.readbyterange(0x14C8,12); -- verificar o status!!!
-	--for i = 0, 11 do
-		--inimigosStatus = inimigosStatus .. "0" .. inimigosStatusaux[i];
-	--end
-	
 	marioMorre = memory.readbyte(0x71); -- 9 = morte
 	
-	--spritesX1 = "";
-	--spritesX2 = "";
-	--spritesY1 = "";
-	--spritesY2 = "";
-	--spritesX1aux = memory.readbyterange(0x14E8,24);
-	--for i = 0, 23 do
-		--spritesX1 = spritesX1 .. "0" .. spritesX1aux[i];
-	--end
-	--spritesX2aux = memory.readbyterange(0xE4,24);
-	--for i = 0, 23 do
-		--spritesX2 = spritesX2 .. "0" .. spritesX2aux[i];
-	--end
-	--spritesY1aux = memory.readbyterange(0x14D4,24);
-	--for i = 0, 23 do
-		--spritesY1 = spritesY1 .. "0" .. spritesY1aux[i];
-	--end
-	--spritesY2aux = memory.readbyterange(0xD8,24);
-	--for i = 0, 23 do
-		--spritesY2 = spritesY2 .. "0" .. spritesY2aux[i];
-	--end
+	sprites = {};
+	for i = 1, 12 do
+		sprites[i] = {0,0,0,0}; -- {posX,posY,status,id}
+	end
+	
+	inimigosIDaux = memory.readbyterange(0x9E,12);
+	for i = 0, 11 do
+		sprites[i+1][4] = memory.readbyte(0x9E+i);
+	end
+	
+	inimigosStatusaux = memory.readbyterange(0x14C8,12); -- > 7
+	for i = 0, 11 do
+		sprites[i+1][3] = memory.readbyte(0x14C8+i);
+	end
+	
+	-- 0x14E0 Sprite X position, high byte.
+	-- 0xE4 Sprite X position, low byte.
+	-- 0x14D4 Sprite Y position, high byte.
+	-- 0xD8 Sprite Y position, low byte.
+	
+	for i = 0, 11 do
+		high = memory.readbyte(0x14E0+i);
+		low = memory.readbyte(0xE4+i);
+		sprites[i+1][1] = bit.bor(low,(bit.lshift(high,8)));
+	end
+	
+	for i = 0, 11 do
+		high = memory.readbyte(0x14D4+i);
+		low = memory.readbyte(0xD8+i);
+		sprites[i+1][2] = bit.bor(low,(bit.lshift(high,8)));
+	end
 	
 end
 
@@ -70,42 +61,12 @@ function resetControl(acao)
 	
 	comandos[acoes[1]] = true; -- ir para direita
 	
-	if acao < 5 then
-		comandos[acoes[acao]] = true;
-	end
-	
-	if acao == 5 then -- X + A
-		comandos[acoes[2]] = true;
-		comandos[acoes[3]] = true;		
-	end
-	
-	if acao == 6 then -- X + B
-		comandos[acoes[2]] = true;
-		comandos[acoes[4]] = true;		
-	end
-end
+	comandos[acoes[acao]] = true;
 
---https://www.lua.org/pil/12.1.1.html
-function serialize (o)
-	if type(o) == "number" then
-		io.write(o)
-	elseif type(o) == "string" then
-		io.write(string.format("%q", o))
-	elseif type(o) == "states" then
-		io.write("{\n")
-		for k,v in pairs(o) do
-			io.write("  ", k, " = ")
-			serialize(v)
-			io.write(",\n")
-		end
-		io.write("}\n")
-	else
-		error("cannot serialize a " .. type(o))
-	end
 end
 
 --estado = 0;
-objetivoX = 4823;
+objetivoX = 4823; --4823;
 posX = 0;
 posXanterior = 0;
 --estadoAnterior = 0;
@@ -135,7 +96,7 @@ function copyStates()
 	--for line in liness:gmatch("([^\n]*)\n?") do
 	for i = 1, indiceMax do
 		states[i] = {};
-		states[i] = {io.read(),0,0,0,0,0,0};
+		states[i] = {io.read(),0,0,0};
 		--i = i+1;
 	end
 	io.close(file);
@@ -145,7 +106,7 @@ function saveQValues()
 	file = io.open("qvalues.txt","w+");
 	io.output(file);
 	for i = 1,indiceMax do
-		for j = 2, 6 do
+		for j = 2, 4 do
 			io.write(states[i][j] .. "\n");
 		end
 	end
@@ -159,7 +120,7 @@ function copyQValues()
 	--i = 1;
 	--for line in liness:gmatch("([^\n]*)\n?") do
 	for i = 1, indiceMax do
-		for j = 2, 6 do
+		for j = 2, 4 do
 			states[i][j] = tonumber(io.read());
 		end
 		--i = i+1;
@@ -171,7 +132,7 @@ function saveNValues()
 	file = io.open("nvalues.txt","w+");
 	io.output(file);
 	for i = 1,indiceMax do
-		for j = 2, 6 do
+		for j = 2, 4 do
 			io.write(ntable[i][j] .. "\n");
 		end
 	end
@@ -186,7 +147,7 @@ function copyNValues()
 	--for line in liness:gmatch("([^\n]*)\n?") do
 	for i = 1, indiceMax do
 		--ntable[i] = {};
-		for j = 2, 6 do
+		for j = 2, 4 do
 			ntable[i][j] = tonumber(io.read());
 		end
 		--i = i+1;
@@ -201,6 +162,13 @@ function saveScore()
 	io.close(file);
 end
 
+function savePosX()
+	file = io.open("posx.txt","a+");
+	io.output(file);
+	io.write(posX .. "\n");
+	io.close(file);
+end
+
 function getEstadoIndex(eestado)
 	for j = 1, indiceMax do
 		if states[j] ~= nil and states[j][1] == eestado then
@@ -210,114 +178,26 @@ function getEstadoIndex(eestado)
 	return -1;
 end
 
-function estados(estado, acao)	
-	local index = getEstadoIndex(estado);
-	if index == -1 then -- estado novo
-		indiceMax = indiceMax + 1;
-		states[indiceMax] = {estado,-1,-1,-1,-1,-1,0};
-		index = indiceMax;
-		savestate.save("estados/" .. index);
-	else
-		savestate.load("estados/" .. index);
-	end
-	
-	if states[index][7] == 5 then -- já realizou todas as ações
-		do return end;
-	end
-	
-	local i;
-	if acao == -1 then
-		for i = 2,6 do
-			estados(estado,i);
-		end
-		do return end;
-	end
-	
-	if states[index][acao] == 0 then
-		do return end;
-	end
-	
-	states[index][7] = states[index][7] + 1;
-	
-	savestate.load("estados/" .. index);
-	getElementos();
-	posXanterior = posX;
-	scoreAnterior = score;
-	
-	resetControl(0);
-	joypad.set(comandos);
-	emu.frameadvance();
-	
-	resetControl(acao);
-	
-	local cont = 1;
-	local j;
-	
-	for j = 1, frames do -- realiza ação
-		joypad.set(comandos);
-		emu.frameadvance();
-		xAux = posX;
-		getElementos();
-		--print(marioMorre);
-		if marioMorre == 9 then -- verifica se morreu a cada frame
-			states[index][acao] = 0;			
-			do return end;
-		end
-		
-		if cont == frames then
-			--cont = 0;
-			states[index][acao] = 0;
-			do return end;
-		end
-		
-		if posX > objetivoX then -- verifica o objetivo
-			states[index][acao] = 0;
-			do return end;
-		end
-		
-		if posX == xAux then
-			cont = cont+1;
+function getEstado()
+	local estadoo;
+	estadoo = posX .. "00" .. posY;
+	for i = 1, 12 do
+		if sprites[i][3] > 7 then
+			estadoo = estadoo .. "00" .. sprites[i][1] .. "00" .. sprites[i][2];
 		end
 	end
-
-	local estadoAux;
-	
-	getElementos();
-	--estadoAux = posXtela .. 00 .. posYtela .. 00 .. blocos .. 00 .. spritesX1 .. 00 .. spritesY1 .. 00 .. spritesX2 .. 00 .. spritesY2 .. 00 .. inimigosID; -- .. 00 .. inimigosStatus;
-	estadoAux = posX .. "00" .. posY;
-	
-	states[index][acao] = 0;
-	
-	estados(estadoAux,-1);
-	
-	--states[indiceAux][acao] = states[indiceAux][acao] + (learningRate* (reward + (discount*melhor) - states[indiceAux][acao]));
+	return estadoo;
 end
 
-
---savestate.load(inicio);
---getElementos();
---estado = posXtela .. 00 .. posYtela .. 00 .. blocos .. 00 .. spritesX1 .. 00 .. spritesY1 .. 00 .. spritesX2 .. 00 .. spritesY2 .. 00 .. inimigosID; -- .. 00 .. inimigosStatus;
---estado = posX .. "00" .. posY;
-
---estados(estado,-1);
-
---print("Inicializacao dos estados finalizada \n");
-
-
---saveStates();
 copyStates();
-
-print("Quantidade de estados: " .. indiceMax);
 
 saveQValues(); -- se quiser zerar os qvalues
 copyQValues();
 
--- q-learning
-
 ntable = {};
 for i = 1, indiceMax do
 	ntable[i] = {};
-	for j = 2, 6 do
+	for j = 2, 4 do
 		ntable[i][j] = 0;
 	end
 end
@@ -326,12 +206,74 @@ saveNValues(); -- se quiser zerar os nvalues
 copyNValues();
 
 index = nil;
+menor = 2;
+
+function getAcao()
+	pior = nil;
+	melhor = nil;
+	acao = nil;
+	
+	lista = nil;
+	for i = 2, 4 do -- para todas as ações
+		aux = ntable[index][i];
+		if i == 2 then
+			pior = aux;
+			acao = i;
+		elseif aux < pior then
+			pior = aux;
+			acao = i;
+			lista = nil;
+		elseif aux == pior then
+			if lista == nil then
+				lista = {};
+				lista[1] = i;
+				lista[2] = acao;
+				indexLista = 2;
+			else
+				indexLista = indexLista+1;
+				lista[indexLista] = i;
+			end
+		end
+	end
+	
+	if pior > menor then
+	--if true then
+		lista = nil;
+		for i = 2, 4 do -- para todas as ações
+			aux = states[index][i];
+			if i == 2 then
+				melhor = aux;
+				acao = i;
+			elseif aux > melhor then
+				melhor = aux;
+				acao = i;
+				lista = nil;
+			elseif aux == melhor then
+				if lista == nil then
+					lista = {};
+					lista[1] = i;
+					lista[2] = acao;
+					indexLista = 2;
+				else
+					indexLista = indexLista+1;
+					lista[indexLista] = i;
+				end
+			end
+		end
+	end
+	
+	if lista ~= nil then
+		acao = lista[math.random(1,indexLista)];
+	end
+	
+	return acao;
+end
 
 function qlearning()
 	currentValue = 0;
 	newValue = 0;
-	learningRate = 1;
-	discount = 1;
+	learningRate = 0.1;
+	discount = 0.1;
 	exploration = 5;
 	reward = 0;
 	rewardAnterior = 0;
@@ -343,94 +285,28 @@ function qlearning()
 	coinsAnterior = 0;
 	terminal = 0;
 
-	--randIndex = math.random(1,indiceMax);
-	--savestate.load(inicio);
-	savestate.load("estados/" .. index);
+	--index = math.random(1,indiceMax);
+	savestate.load(inicio);
+	--savestate.load("estados/" .. index);
 	getElementos();
-	--estado = posXtela .. 00 .. posYtela .. 00 .. blocos .. 00 .. spritesX1 .. 00 .. spritesY1 .. 00 .. spritesX2 .. 00 .. spritesY2 .. 00 .. inimigosID; -- .. 00 .. inimigosStatus;
-	estado = posX .. "00" .. posY;
-	--index = getEstadoIndex(estado);
-	--index = randIndex;
-	--continue = 0;
-	
-	---savestate.load("estados/" .. index);
-	---getElementos();
+	estado = getEstado();
+	index = getEstadoIndex(estado);
 	
 	while true do
 		if index == -1 then
-			init = indiceMax;
-			estados(estado,-1);
-			index = getEstadoIndex(estado);
-			for i = init, indiceMax do
-				ntable[i] = {};
-				for j = 2, 6 do
-					ntable[i][j] = 0;
-				end
+			indiceMax = indiceMax + 1;
+			states[indiceMax] = {estado,0,0,0};
+			index = indiceMax;
+			ntable[index] = {};
+			for j = 2, 4 do
+				ntable[index][j] = 0;
 			end
 			saveStates();
 			saveQValues();
 			saveNValues();
-			savestate.load("estados/" .. index);
-			getElementos();
 		end
 		
-		melhor = -9999999999;
-		pior = 9999999999;
-		acao = nil;
-		rand = math.random(0,10);
-		if rand > exploration then --exploitation
-			lista = nil;
-			for i = 2, 6 do -- para todas as ações
-				aux = states[index][i];
-				if i == 2 then
-					melhor = aux;
-					acao = i;
-				elseif aux > melhor then
-					melhor = aux;
-					acao = i;
-					lista = nil;
-				elseif aux == melhor then
-					if lista == nil then
-						lista = {};
-						lista[1] = i;
-						lista[2] = acao;
-						indexLista = 3;
-					else
-						lista[indexLista] = i;
-						indexLista = indexLista+1;
-					end
-				end
-			end
-			if lista ~= nil then
-				acao = lista[math.random(1,indexLista-1)];
-			end
-		else	-- exploration
-			lista = nil;
-			for i = 2, 6 do -- para todas as ações
-				aux = ntable[index][i];
-				if i == 2 then
-					pior = aux;
-					acao = i;
-				elseif aux < pior then
-					pior = aux;
-					acao = i;
-					lista = nil;
-				elseif aux == pior then
-					if lista == nil then
-						lista = {};
-						lista[1] = i;
-						lista[2] = acao;
-						indexLista = 3;
-					else
-						lista[indexLista] = i;
-						indexLista = indexLista+1;
-					end
-				end
-			end
-			if lista ~= nil then
-				acao = lista[math.random(1,indexLista-1)];
-			end
-		end
+		acao = getAcao();
 		
 		resetControl(0);
 		joypad.set(comandos);
@@ -447,10 +323,8 @@ function qlearning()
 		posXanterior = posX;
 		--print("index " .. index .. " acao " .. acao);
 		
-		if ntable[index][acao] < 20 then
-			ntable[index][acao] = ntable[index][acao]+1;
-		end
-		
+		ntable[index][acao] = ntable[index][acao]+1;
+	
 		for j = 1, frames do -- realiza ação
 			joypad.set(comandos);
 			emu.frameadvance();
@@ -460,12 +334,14 @@ function qlearning()
 			if marioMorre == 9 then -- verifica se morreu a cada frame
 				reward = -100;
 				terminal = 1;
+				--savePosX();
 				break;
 			end
 			
 			if cont == frames then
 				reward = -100;
 				terminal = 1;
+				--savePosX();
 				break;
 			end
 			
@@ -482,50 +358,46 @@ function qlearning()
 			end
 		end
 		
+		reward = reward + ((posX-posXanterior)/100);
+		
 		if terminal == 0 then
 			reward = (coins - coinsAnterior)+(score - scoreAnterior)/10;
 		end
 		
-		getElementos();
-		--estado = posXtela .. 00 .. posYtela .. 00 .. blocos .. 00 .. spritesX1 .. 00 .. spritesY1 .. 00 .. spritesX2 .. 00 .. spritesY2 .. 00 .. inimigosID; -- .. 00 .. inimigosStatus;
-		estado = posX .. "00" .. posY;
-		index = getEstadoIndex(estado);
-		
 		if terminal == 1 then -- objetivo alcancado
 			--print("indexAnterior " .. indexAnterior .. " acao " .. acao .. " reward " .. reward);
 			states[indexAnterior][acao] = reward;
-			--if exploration > 0 then
-			--	exploration = exploration - 0.01;
-			--end
 			break;
 		end
 		
-		--ver = 0;
-		--if terminal == 1 then -- morreu
-		--	states[indexAnterior][acao] = reward;
-		--	savestate.load("estados/" .. indexAnterior);
-		--	if(continue == 20) then break end;
-		--	continue = continue + 1;
-		--	ver = 1;
-		--end
+		getElementos();
+		estado = getEstado();
+		index = getEstadoIndex(estado);
 		
-		--if(ver == 0) then
-		--continue = 0;
-		melhor = -9999999999;
+		melhor = nil;
 		if index == -1 then
 			melhor = 0;
 		else
-			for i = 2, 6 do -- para todas as ações
+			for i = 2, 4 do -- para todas as ações
 				aux = states[index][i];
-				if aux > melhor then
+				if i == 2 then
+					melhor = aux;
+				elseif aux > melhor then
 					melhor = aux;
 				end
 			end
 		end
 		
-		states[indexAnterior][acao] = states[indexAnterior][acao] + (learningRate*ntable[indexAnterior][acao])*(rewardAnterior + (discount*melhor) - states[indexAnterior][acao]);
+		qval = states[indexAnterior][acao] + (learningRate*ntable[indexAnterior][acao])*(reward + (discount*melhor) - states[indexAnterior][acao]);
+		
+		if qval < -1000000000 then
+			qval = -1000000000;
+		elseif qval > 1000000000 then
+			qval = 1000000000;
+		end
+		
+		states[indexAnterior][acao] = qval;
 		--print("estado: " .. indexAnterior .. " acao: " .. acao .. " qvalue: " .. states[indexAnterior][acao] .. " frequencia: " .. ntable[indexAnterior][acao]);
-		--end
 	end
 	
 	--print("score: " .. score);
@@ -534,35 +406,28 @@ function qlearning()
 	saveNValues();
 end
 
-function exploration()
-	print("inicio: " .. os.date("%c"));
-	exploration = 100; -- exploration only
+function verifica()
+	ret = 1;
 	for i = 1, indiceMax do
-		index = i;
-		print("estado " .. i);
-		qlearning();
+		for j = 2, 4 do
+			if ntable[i][j] < 10 then
+				ret = 0;
+				break;
+			end
+		end
+		if ret == 0 then break end;
 	end
-	print("termino: " .. os.date("%c"));
+	return ret;
 end
 
-function exploration2()
-	exploration = 100;
-	for i = 1, 200 do
-		index = 1;
-		qlearning();
-		exploration = exploration-1;
-	end
-end
-
-function exploitation()
-	exploration = -100; -- exploitation only
-	for i = 1, 10 do
-		index = 1;
+function treino()
+	--menor = -1;
+	print("\ninicio: " .. os.date("%c"));
+	for i = 1, 1000 do
 		qlearning();
 	end
+	print("\ntermino: " .. os.date("%c"));
 end
 
-
---exploration();
---exploration2();
-exploitation();
+treino();
+--os.execute("shutdown %-s %-t 01");
