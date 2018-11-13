@@ -1,4 +1,4 @@
-acoes = {"P1 Right","P1 X","P1 A","P1 B"}; -- 2; 3; 4; 2,3; 2,4
+acoes = {"P1 Right","P1 X","P1 A","P1 B"}; -- 2; 3; 4;
 comandos = {};
 inicio = "inicio.state"
 states = {};
@@ -7,22 +7,17 @@ function getElementos()
 	posX = memory.read_s16_le(0x94);
 	posY = memory.read_s16_le(0x96);
 	
-	posXtela = memory.read_s16_le(0x7E);
-	posYtela = memory.read_s16_le(0x80);
+	--posXtela = memory.read_s16_le(0x7E);
+	--posYtela = memory.read_s16_le(0x80);
 	
 	score = memory.read_s24_le(0xF34);
-	coins = memory.read_s24_le(0xDBF);
+	coins = memory.readbyte(0xDBF);
 	
 	marioMorre = memory.readbyte(0x71); -- 9 = morte
 	
 	sprites = {};
 	for i = 1, 12 do
 		sprites[i] = {0,0,0,0}; -- {posX,posY,status,id}
-	end
-	
-	inimigosIDaux = memory.readbyterange(0x9E,12);
-	for i = 0, 11 do
-		sprites[i+1][4] = memory.readbyte(0x9E+i);
 	end
 	
 	inimigosStatusaux = memory.readbyterange(0x14C8,12); -- > 7
@@ -74,7 +69,6 @@ indiceMax = 0;
 
 --acao = 0;
 melhorScore = 0;
-frames = 60; -- quantidade de frames para cada ação
 
 function saveStates()
 	file = io.open("states.txt","w+");
@@ -88,16 +82,18 @@ end
 
 function copyStates()
 	file = io.open("states.txt","r");
-	io.input(file);
-	indiceMax = tonumber(io.read());
-	--print("indiceMax " .. indiceMax);
-	--liness = io.read("*all");
-	--i = 1;
-	--for line in liness:gmatch("([^\n]*)\n?") do
-	for i = 1, indiceMax do
-		states[i] = {};
-		states[i] = {io.read(),0,0,0};
-		--i = i+1;
+	if file == nil then
+		indiceMax = 0;
+		file = io.open("states.txt","w+");
+		io.input(file);
+		io.write("0\n");
+	else
+		io.input(file);
+		indiceMax = tonumber(io.read());
+		for i = 1, indiceMax do
+			states[i] = {};
+			states[i] = {io.read(),0,0,0};
+		end
 	end
 	io.close(file);
 end
@@ -142,11 +138,7 @@ end
 function copyNValues()
 	file = io.open("nvalues.txt","r");
 	io.input(file);
-	--liness = io.read("*all");
-	--i = 1;
-	--for line in liness:gmatch("([^\n]*)\n?") do
 	for i = 1, indiceMax do
-		--ntable[i] = {};
 		for j = 2, 4 do
 			ntable[i][j] = tonumber(io.read());
 		end
@@ -155,8 +147,39 @@ function copyNValues()
 	io.close(file);
 end
 
+function backupFiles()
+	file = io.open("nvalues" .. scoreNumber .. ".txt","w+");
+	io.output(file);
+	for i = 1,indiceMax do
+		for j = 2, 4 do
+			io.write(ntable[i][j] .. "\n");
+		end
+	end
+	io.close(file);
+	
+	file = io.open("qvalues" .. scoreNumber .. ".txt","w+");
+	io.output(file);
+	for i = 1,indiceMax do
+		for j = 2, 4 do
+			io.write(states[i][j] .. "\n");
+		end
+	end
+	io.close(file);
+	
+	file = io.open("states" .. scoreNumber .. ".txt","w+");
+	io.output(file);
+	io.write(indiceMax .. "\n");
+	for i = 1,indiceMax do
+		io.write(states[i][1] .. "\n");
+	end
+	io.close(file);
+	
+end
+
+scoreNumber = 0;
+
 function saveScore()
-	file = io.open("scores.txt","a+");
+	file = io.open("scores" .. scoreNumber .. ".txt","a+");
 	io.output(file);
 	io.write(score .. "\n");
 	io.close(file);
@@ -180,19 +203,16 @@ end
 
 function getEstado()
 	local estadoo;
-	estadoo = posX .. "00" .. posY;
+	estadoo = posX .. "," .. posY;
 	for i = 1, 12 do
 		if sprites[i][3] > 7 then
-			estadoo = estadoo .. "00" .. sprites[i][1] .. "00" .. sprites[i][2];
+			estadoo = estadoo .. "-" .. sprites[i][1] .. "," .. sprites[i][2];
 		end
 	end
 	return estadoo;
 end
 
 copyStates();
-
-saveQValues(); -- se quiser zerar os qvalues
-copyQValues();
 
 ntable = {};
 for i = 1, indiceMax do
@@ -202,11 +222,7 @@ for i = 1, indiceMax do
 	end
 end
 
-saveNValues(); -- se quiser zerar os nvalues
-copyNValues();
-
 index = nil;
-menor = 2;
 
 function getAcao()
 	pior = nil;
@@ -270,11 +286,6 @@ function getAcao()
 end
 
 function qlearning()
-	currentValue = 0;
-	newValue = 0;
-	learningRate = 0.1;
-	discount = 0.1;
-	exploration = 5;
 	reward = 0;
 	rewardAnterior = 0;
 	estado = nil;
@@ -301,9 +312,9 @@ function qlearning()
 			for j = 2, 4 do
 				ntable[index][j] = 0;
 			end
-			saveStates();
-			saveQValues();
-			saveNValues();
+			--saveStates();
+			--saveQValues();
+			--saveNValues();
 		end
 		
 		acao = getAcao();
@@ -317,6 +328,7 @@ function qlearning()
 		local cont = 1;
 		
 		rewardAnterior = reward;
+		reward = 0;
 		scoreAnterior = score;
 		coinsAnterior = coins;
 		indexAnterior = index;
@@ -358,14 +370,15 @@ function qlearning()
 			end
 		end
 		
-		reward = reward + ((posX-posXanterior)/100);
+		--reward = reward + ((posX-posXanterior)/100);
 		
 		if terminal == 0 then
 			reward = (coins - coinsAnterior)+(score - scoreAnterior)/10;
 		end
 		
-		if terminal == 1 then -- objetivo alcancado
-			--print("indexAnterior " .. indexAnterior .. " acao " .. acao .. " reward " .. reward);
+		--print("coins: " .. coins .. " coinsAnterior: " .. coinsAnterior .. "\nscore: " .. score .. " scoreAnterior: " .. scoreAnterior .. "\nreward: " .. reward .. "\n");
+		
+		if terminal == 1 then
 			states[indexAnterior][acao] = reward;
 			break;
 		end
@@ -389,19 +402,21 @@ function qlearning()
 		end
 		
 		qval = states[indexAnterior][acao] + (learningRate*ntable[indexAnterior][acao])*(reward + (discount*melhor) - states[indexAnterior][acao]);
+		--print("qvalue: " .. qval .. "\n");
 		
-		if qval < -1000000000 then
-			qval = -1000000000;
-		elseif qval > 1000000000 then
-			qval = 1000000000;
-		end
+		
+		--if qval < -1000000000 then
+		--	qval = -1000000000;
+		--elseif qval > 1000000000 then
+		--	qval = 1000000000;
+		--end
 		
 		states[indexAnterior][acao] = qval;
 		--print("estado: " .. indexAnterior .. " acao: " .. acao .. " qvalue: " .. states[indexAnterior][acao] .. " frequencia: " .. ntable[indexAnterior][acao]);
 	end
 	
 	--print("score: " .. score);
-	--print("exploration: " .. exploration .. "\n");
+	saveStates();
 	saveQValues();
 	saveNValues();
 end
@@ -410,7 +425,7 @@ function verifica()
 	ret = 1;
 	for i = 1, indiceMax do
 		for j = 2, 4 do
-			if ntable[i][j] < 10 then
+			if ntable[i][j] < menor then
 				ret = 0;
 				break;
 			end
@@ -421,13 +436,28 @@ function verifica()
 end
 
 function treino()
-	--menor = -1;
-	print("\ninicio: " .. os.date("%c"));
-	for i = 1, 1000 do
-		qlearning();
+	for it = 1, 3 do
+		scoreNumber = it;
+		print("\ninicio" .. scoreNumber .. ": " .. os.date("%c"));
+		for i = 1, 1000 do
+			qlearning();
+			--if verifica() == 0 then
+			--	print("yes");
+			--end
+		end
+		print("\ntermino" .. scoreNumber .. ": " .. os.date("%c"));
+		backupFiles();
 	end
-	print("\ntermino: " .. os.date("%c"));
 end
+
+frames = 30; -- quantidade de frames para cada ação
+menor = 5; --exploration
+saveQValues(); -- se quiser zerar os qvalues -----------------------------------------------
+copyQValues();
+saveNValues(); -- se quiser zerar os nvalues
+copyNValues();
+learningRate = 0.0001;
+discount = 0.1;
 
 treino();
 --os.execute("shutdown %-s %-t 01");
