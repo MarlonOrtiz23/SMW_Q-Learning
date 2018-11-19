@@ -2,7 +2,7 @@
 
 código fonte: q-learning.lua
 
-savestate do início da fase de teste: inicio.state
+savestate do início das fases de teste: inicio.state e inicio2.state
 
 ROM do SMW: Super Mario World (USA).smc
 
