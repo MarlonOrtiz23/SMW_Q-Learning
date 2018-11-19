@@ -1,6 +1,5 @@
 acoes = {"P1 Right","P1 X","P1 A","P1 B"}; -- 2; 3; 4;
 comandos = {};
-inicio = "inicio.state"
 states = {};
 
 function getElementos()
@@ -50,7 +49,10 @@ function resetControl(acao)
 	end
 	joypad.set(comandos);
 	
-	if acao == 0 then
+	if acao == 5 then
+		comandos[acoes[1]] = true; -- ir para direita
+		do return end
+	elseif acao == 0 then
 		do return end
 	end
 	
@@ -61,7 +63,6 @@ function resetControl(acao)
 end
 
 --estado = 0;
-objetivoX = 4823; --4823;
 posX = 0;
 posXanterior = 0;
 --estadoAnterior = 0;
@@ -92,7 +93,7 @@ function copyStates()
 		indiceMax = tonumber(io.read());
 		for i = 1, indiceMax do
 			states[i] = {};
-			states[i] = {io.read(),0,0,0};
+			states[i] = {io.read(),0,0,0,0};
 		end
 	end
 	io.close(file);
@@ -102,7 +103,7 @@ function saveQValues()
 	file = io.open("qvalues.txt","w+");
 	io.output(file);
 	for i = 1,indiceMax do
-		for j = 2, 4 do
+		for j = 2, 5 do
 			io.write(states[i][j] .. "\n");
 		end
 	end
@@ -116,7 +117,7 @@ function copyQValues()
 	--i = 1;
 	--for line in liness:gmatch("([^\n]*)\n?") do
 	for i = 1, indiceMax do
-		for j = 2, 4 do
+		for j = 2, 5 do
 			states[i][j] = tonumber(io.read());
 		end
 		--i = i+1;
@@ -128,7 +129,7 @@ function saveNValues()
 	file = io.open("nvalues.txt","w+");
 	io.output(file);
 	for i = 1,indiceMax do
-		for j = 2, 4 do
+		for j = 2, 5 do
 			io.write(ntable[i][j] .. "\n");
 		end
 	end
@@ -139,7 +140,7 @@ function copyNValues()
 	file = io.open("nvalues.txt","r");
 	io.input(file);
 	for i = 1, indiceMax do
-		for j = 2, 4 do
+		for j = 2, 5 do
 			ntable[i][j] = tonumber(io.read());
 		end
 		--i = i+1;
@@ -147,11 +148,18 @@ function copyNValues()
 	io.close(file);
 end
 
+function saveTime()
+	file = io.open("time.txt","a+");
+	io.output(file);
+	io.write(os.date("%c") .. "\n");
+	io.close(file);
+end
+
 function backupFiles()
 	file = io.open("nvalues" .. scoreNumber .. ".txt","w+");
 	io.output(file);
 	for i = 1,indiceMax do
-		for j = 2, 4 do
+		for j = 2, 5 do
 			io.write(ntable[i][j] .. "\n");
 		end
 	end
@@ -160,7 +168,7 @@ function backupFiles()
 	file = io.open("qvalues" .. scoreNumber .. ".txt","w+");
 	io.output(file);
 	for i = 1,indiceMax do
-		for j = 2, 4 do
+		for j = 2, 5 do
 			io.write(states[i][j] .. "\n");
 		end
 	end
@@ -217,7 +225,7 @@ copyStates();
 ntable = {};
 for i = 1, indiceMax do
 	ntable[i] = {};
-	for j = 2, 4 do
+	for j = 2, 5 do
 		ntable[i][j] = 0;
 	end
 end
@@ -230,7 +238,7 @@ function getAcao()
 	acao = nil;
 	
 	lista = nil;
-	for i = 2, 4 do -- para todas as ações
+	for i = 2, 5 do -- para todas as ações
 		aux = ntable[index][i];
 		if i == 2 then
 			pior = aux;
@@ -255,7 +263,7 @@ function getAcao()
 	if pior > menor then
 	--if true then
 		lista = nil;
-		for i = 2, 4 do -- para todas as ações
+		for i = 2, 5 do -- para todas as ações
 			aux = states[index][i];
 			if i == 2 then
 				melhor = aux;
@@ -306,10 +314,10 @@ function qlearning()
 	while true do
 		if index == -1 then
 			indiceMax = indiceMax + 1;
-			states[indiceMax] = {estado,0,0,0};
+			states[indiceMax] = {estado,0,0,0,0};
 			index = indiceMax;
 			ntable[index] = {};
-			for j = 2, 4 do
+			for j = 2, 5 do
 				ntable[index][j] = 0;
 			end
 			--saveStates();
@@ -391,7 +399,7 @@ function qlearning()
 		if index == -1 then
 			melhor = 0;
 		else
-			for i = 2, 4 do -- para todas as ações
+			for i = 2, 5 do -- para todas as ações
 				aux = states[index][i];
 				if i == 2 then
 					melhor = aux;
@@ -424,7 +432,7 @@ end
 function verifica()
 	ret = 1;
 	for i = 1, indiceMax do
-		for j = 2, 4 do
+		for j = 2, 5 do
 			if ntable[i][j] < menor then
 				ret = 0;
 				break;
@@ -439,19 +447,21 @@ function treino()
 	for it = 1, 3 do
 		scoreNumber = it;
 		print("\ninicio" .. scoreNumber .. ": " .. os.date("%c"));
+		saveTime();
 		for i = 1, 1000 do
 			qlearning();
-			--if verifica() == 0 then
-			--	print("yes");
-			--end
 		end
 		print("\ntermino" .. scoreNumber .. ": " .. os.date("%c"));
+		saveTime();
 		backupFiles();
 	end
 end
 
-frames = 30; -- quantidade de frames para cada ação
-menor = 5; --exploration
+objetivoX = 4823; --4823;
+inicio = "inicio.state"
+--inicio = "inicio2.state"
+frames = 90; -- quantidade de frames para cada ação
+menor = 1; --exploration
 saveQValues(); -- se quiser zerar os qvalues -----------------------------------------------
 copyQValues();
 saveNValues(); -- se quiser zerar os nvalues
